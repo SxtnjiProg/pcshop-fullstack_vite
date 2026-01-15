@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. КОРИСТУВАЧІ (Клієнти та Адміни)
+model User {
+  id       Int      @id @default(autoincrement())
+  email    String   @unique
+  password String
+  fullName String?
+  role     Role     @default(USER) // Роль: USER або ADMIN
+  orders   Order[]  // Зв'язок із замовленнями
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+// 2. ТОВАРИ
+model Product {
+  id          Int      @id @default(autoincrement())
+  title       String
+  slug        String   @unique
+  price       Decimal
+  images      String[]
+  description String?
+  
+  // Характеристики JSON (для фільтрів)
+  specifications Json? 
+
+  categoryId  Int
+  category    Category @relation(fields: [categoryId], references: [id])
+  
+  orderItems  OrderItem[] // Зв'язок, щоб знати, в яких замовленнях є цей товар
+  createdAt   DateTime @default(now())
+}
+
+// 3. КАТЕГОРІЇ
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
+  slug     String    @unique
+  products Product[]
+}
+
+// 4. ЗАМОВЛЕННЯ
+model Order {
+  id        Int         @id @default(autoincrement())
+  
+  // Зв'язок з юзером (робимо optional ?, щоб можна було купувати без реєстрації, якщо захочеш)
+  userId    Int?
+  user      User?       @relation(fields: [userId], references: [id])
+  
+  // Інфо про доставку (ОБОВ'ЯЗКОВО!)
+  fullName  String      // ПІБ отримувача
+  phone     String      // Телефон
+  address   String      // Адреса або відділення пошти
+  
+  status    OrderStatus @default(PENDING)
+  total     Decimal
+  
+  items     OrderItem[]
+  createdAt DateTime    @default(now())
+}
+
+enum OrderStatus {
+  PENDING   // Очікує
+  PAID      // Оплачено
+  SHIPPED   // Відправлено
+  CANCELLED // Скасовано
+}
+
+// 5. ДЕТАЛІ ЗАМОВЛЕННЯ
+model OrderItem {
+  id        Int     @id @default(autoincrement())
+  
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id])
+  
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+  
+  quantity  Int
+  price     Decimal // Зберігаємо ціну на момент покупки!
+}

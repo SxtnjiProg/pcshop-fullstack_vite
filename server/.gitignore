@@ -1,0 +1,25 @@
+# Ігноруємо бібліотеки (вони важать гігабайти, їх не треба)
+node_modules/
+*/node_modules/
+client/node_modules/
+server/node_modules/
+
+# Ігноруємо білди
+dist/
+build/
+client/dist/
+
+# Ігноруємо секретні ключі та налаштування середовища (БЕЗПЕКА!)
+.env
+.env.local
+server/.env
+client/.env
+
+# Системні файли
+.DS_Store
+Thumbs.db
+
+# Логи
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
