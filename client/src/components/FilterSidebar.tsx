@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Check, X, SlidersHorizontal } from 'lucide-react'; // Додали іконки
+import { Check, X, SlidersHorizontal } from 'lucide-react';
 import qs from 'qs';
 
 export interface FilterState {
@@ -16,26 +16,31 @@ interface FilterProps {
   currentFilters: FilterState;
 }
 
+// Інтерфейс для категорій, які прийдуть з бекенду
+interface Category {
+  id: number;
+  name: string;
+  slug: string;
+}
+
 export default function FilterSidebar({ onFilterChange, currentCategory, currentFilters }: FilterProps) {
   const [priceRange, setPriceRange] = useState({
     min: currentFilters.minPrice || '',
     max: currentFilters.maxPrice || ''
   });
   
+  // 1. Стейт для списку категорій (тепер динамічний)
+  const [categories, setCategories] = useState<Category[]>([]);
+  
   const [availableFilters, setAvailableFilters] = useState<Record<string, string[]>>({});
 
-  const categories = [
-    { id: 'cpu', name: 'Процесори' },
-    { id: 'gpu', name: 'Відеокарти' },
-    { id: 'motherboard', name: 'Материнські плати' },
-    { id: 'ram', name: 'Оперативна пам\'ять' },
-    { id: 'storage', name: 'Накопичувачі' },
-    { id: 'psu', name: 'Блоки живлення' },
-    { id: 'case', name: 'Корпуси' },
-    { id: 'monitor', name: 'Монітори' },
-  ];
+  // 2. Завантажуємо категорії при першому рендері
+  useEffect(() => {
+    axios.get('http://localhost:5000/api/categories')
+      .then(res => setCategories(res.data))
+      .catch(err => console.error('Помилка завантаження категорій:', err));
+  }, []);
 
-  // Перевіряємо, чи є активні фільтри (окрім самої категорії)
   const hasActiveFilters = () => {
     const hasPrice = !!currentFilters.minPrice || !!currentFilters.maxPrice;
     const hasSpecs = Object.keys(currentFilters).some(key => 
@@ -44,15 +49,12 @@ export default function FilterSidebar({ onFilterChange, currentCategory, current
     return hasPrice || hasSpecs;
   };
 
-  // Функція повного очищення (Reset)
   const clearAllFilters = () => {
-    setPriceRange({ min: '', max: '' }); // Скидаємо локальні інпути
-    
+    setPriceRange({ min: '', max: '' });
     onFilterChange({
-      category: currentCategory, // Категорію залишаємо
+      category: currentCategory,
       minPrice: '',
       maxPrice: ''
-      // Всі інші специфікації просто не передаємо, і вони зникнуть
     });
   };
 
@@ -65,12 +67,16 @@ export default function FilterSidebar({ onFilterChange, currentCategory, current
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFilters.minPrice, currentFilters.maxPrice]); 
 
+  // Завантаження доступних характеристик (динамічні фільтри)
   useEffect(() => {
     if (currentCategory) {
       const queryString = qs.stringify(currentFilters, { arrayFormat: 'repeat' });
       axios.get(`http://localhost:5000/api/filters?${queryString}`)
         .then(res => setAvailableFilters(res.data))
         .catch(err => console.error(err));
+    } else {
+        // Якщо категорія не обрана, можна очистити специфікації або завантажити загальні
+        setAvailableFilters({});
     }
   }, [currentCategory, currentFilters]);
 
@@ -83,7 +89,10 @@ export default function FilterSidebar({ onFilterChange, currentCategory, current
   };
 
   const handleCategoryClick = (catSlug: string) => {
+    // Якщо клікнули на вже активну категорію — знімаємо виділення
     const newCategory = currentCategory === catSlug ? null : catSlug;
+    
+    // При зміні категорії скидаємо специфікації, але залишаємо ціну
     onFilterChange({
       category: newCategory,
       minPrice: priceRange.min,
@@ -124,14 +133,13 @@ export default function FilterSidebar({ onFilterChange, currentCategory, current
   return (
     <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm space-y-8">
       
-      {/* --- ЗАГОЛОВОК І КНОПКА СКИДАННЯ --- */}
+      {/* --- ЗАГОЛОВОК --- */}
       <div className="flex items-center justify-between pb-4 border-b border-gray-100">
         <div className="flex items-center gap-2 text-gray-900 font-bold">
           <SlidersHorizontal size={20} />
           <span>Фільтри</span>
         </div>
         
-        {/* Кнопка з'являється тільки якщо є що скидати */}
         {hasActiveFilters() && (
           <button 
             onClick={clearAllFilters}
@@ -142,7 +150,7 @@ export default function FilterSidebar({ onFilterChange, currentCategory, current
         )}
       </div>
 
-      {/* Ціна */}
+      {/* --- ЦІНА --- */}
       <div>
         <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase">Ціна, ₴</h3>
         <div className="flex gap-2 mb-2">
@@ -154,21 +162,30 @@ export default function FilterSidebar({ onFilterChange, currentCategory, current
         <button onClick={applyPrice} className="w-full bg-gray-100 hover:bg-green-100 text-green-700 font-bold py-2 rounded text-sm transition">ОК</button>
       </div>
 
-      {/* Категорії */}
+      {/* --- КАТЕГОРІЇ (ДИНАМІЧНІ) --- */}
       <div>
         <h3 className="font-bold text-gray-900 mb-4 text-sm uppercase">Категорії</h3>
         <div className="space-y-1">
+          {/* Якщо категорії ще вантажаться, можна показати скелетон або текст */}
+          {categories.length === 0 && <p className="text-gray-400 text-xs">Завантаження...</p>}
+          
           {categories.map((cat) => (
-            <div key={cat.id} onClick={() => handleCategoryClick(cat.id)}
-              className={`flex justify-between p-2 rounded cursor-pointer text-sm transition ${currentCategory === cat.id ? 'bg-green-50 text-green-700 font-bold' : 'hover:bg-gray-50'}`}>
+            <div 
+              key={cat.id} 
+              // 3. Використовуємо cat.slug для фільтрації
+              onClick={() => handleCategoryClick(cat.slug)}
+              className={`flex justify-between p-2 rounded cursor-pointer text-sm transition ${
+                currentCategory === cat.slug ? 'bg-green-50 text-green-700 font-bold' : 'hover:bg-gray-50'
+              }`}
+            >
               <span>{cat.name}</span>
-              {currentCategory === cat.id && <Check size={16} />}
+              {currentCategory === cat.slug && <Check size={16} />}
             </div>
           ))}
         </div>
       </div>
 
-      {/* Динамічні фільтри */}
+      {/* --- ДИНАМІЧНІ СПЕЦИФІКАЦІЇ --- */}
       {currentCategory && Object.entries(availableFilters).map(([key, values]) => (
         <div key={key}>
           <h3 className="font-bold text-gray-900 mb-2 text-sm uppercase">{key}</h3>

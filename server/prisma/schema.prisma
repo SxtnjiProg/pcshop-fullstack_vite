@@ -16,6 +16,11 @@ model User {
   role     Role     @default(USER) // Роль: USER або ADMIN
   orders   Order[]  // Зв'язок із замовленнями
   createdAt DateTime @default(now())
+  favorites Product[] @relation("UserFavorites")
+  reviews   Review[]
+  cartItems CartItem[]
+  phone     String?
+  address   String?
 }
 
 enum Role {
@@ -31,6 +36,12 @@ model Product {
   price       Decimal
   images      String[]
   description String?
+  favoritedBy User[] @relation("UserFavorites")
+  reviews       Review[]
+  cartItems CartItem[]
+  
+  stock       Int      @default(10) // Скільки штук є на складі (по дефолту 10)
+  soldCount   Int      @default(0)  // Скільки разів купили (для статистики)
   
   // Характеристики JSON (для фільтрів)
   specifications Json? 
@@ -53,34 +64,39 @@ model Category {
 // 4. ЗАМОВЛЕННЯ
 model Order {
   id        Int         @id @default(autoincrement())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
   
-  // Зв'язок з юзером (робимо optional ?, щоб можна було купувати без реєстрації, якщо захочеш)
+  status    OrderStatus @default(PENDING)
+  total     Float
+  
+  // Дані доставки
+  fullName  String
+  phone     String
+  city      String
+  address   String?     // Відділення або вулиця
+  
+  // Зв'язок з юзером (може бути null, якщо замовлення без реєстрації, але краще з нею)
   userId    Int?
   user      User?       @relation(fields: [userId], references: [id])
   
-  // Інфо про доставку (ОБОВ'ЯЗКОВО!)
-  fullName  String      // ПІБ отримувача
-  phone     String      // Телефон
-  address   String      // Адреса або відділення пошти
-  
-  status    OrderStatus @default(PENDING)
-  total     Decimal
-  
   items     OrderItem[]
-  createdAt DateTime    @default(now())
+  ttn       String?      // Номер ТТН після відправки замовлення
+  // Для LiqPay
+  paymentId String?     // ID транзакції в LiqPay
 }
 
 enum OrderStatus {
-  PENDING   // Очікує
-  PAID      // Оплачено
-  SHIPPED   // Відправлено
-  CANCELLED // Скасовано
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
 }
 
 // 5. ДЕТАЛІ ЗАМОВЛЕННЯ
 model OrderItem {
   id        Int     @id @default(autoincrement())
-  
   orderId   Int
   order     Order   @relation(fields: [orderId], references: [id])
   
@@ -88,5 +104,42 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
   
   quantity  Int
-  price     Decimal // Зберігаємо ціну на момент покупки!
+  price     Float   // Фіксуємо ціну на момент покупки!
 }
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], name: "IDX_session_expire")
+  @@map("session") // Це важливо: називаємо таблицю "session" з маленької літери
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  text      String
+  rating    Int      @default(5) // Оцінка від 1 до 5
+  createdAt DateTime @default(now())
+  
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  quantity  Int      @default(1)
+  
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId]) // Щоб не дублювати товар в кошику одного юзера
+}
+

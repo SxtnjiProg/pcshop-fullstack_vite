@@ -6,7 +6,9 @@ const router = express.Router();
 
 router.post('/register', authController.register);
 router.post('/login', authController.login);
-router.get('/me', protect, authController.getMe); // Захищений роут
-router.put('/password', protect, authController.updatePassword); // Захищений
+router.post('/logout', authController.logout); // <--- ДОДАЛИ ЦЕ
+
+router.get('/me', protect, authController.getMe);
+router.put('/password', protect, authController.updatePassword);
 
 export default router;

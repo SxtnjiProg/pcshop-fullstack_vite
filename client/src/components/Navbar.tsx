@@ -1,17 +1,24 @@
 import { Link } from 'react-router-dom';
-import { ShoppingCart, Search, Menu, Cpu, User } from 'lucide-react';
+import { ShoppingCart, Search, Menu, Cpu, User, Heart, Scale } from 'lucide-react'; // <--- 1. Додали Scale
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
+import { useComparison } from '../context/ComparisonContext'; // <--- 2. Імпорт хука
 import { motion } from 'framer-motion';
 
 export default function Navbar() {
   const { items } = useCart();
+  const { user } = useAuth();
+  const { favorites } = useWishlist();
+  const { items: compareItems } = useComparison(); // <--- 3. Отримуємо товари для порівняння
+  
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <nav className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/10">
       <div className="container mx-auto px-4 h-20 flex justify-between items-center">
         
-        {/* Логотип з анімацією */}
+        {/* Логотип */}
         <Link to="/" className="flex items-center gap-2 group">
           <motion.div
             className="bg-green-500 p-2 rounded-lg text-black shadow-[0_0_15px_rgba(34,197,94,0.5)]"
@@ -41,12 +48,44 @@ export default function Navbar() {
 
         {/* Меню справа */}
         <div className="flex items-center gap-6">
-          {/* Іконка акаунту замість каталогу */}
-          <Link 
-            to="/login" 
-            className="text-white hover:text-green-400 transition relative"
-          >
-            <User size={24} />
+          
+          {/* Акаунт */}
+          {user ? (
+            <Link 
+              to={user.role === 'ADMIN' ? "/admin" : "/profile"} 
+              className="flex items-center gap-2 text-green-400 hover:text-white transition relative group"
+              title={user.fullName}
+            >
+              <User size={24} />
+              <span className="absolute bottom-0 right-0 w-2 h-2 bg-green-500 rounded-full border border-black"></span>
+            </Link>
+          ) : (
+            <Link 
+              to="/login" 
+              className="text-white hover:text-green-400 transition relative"
+            >
+              <User size={24} />
+            </Link>
+          )}
+
+          {/* --- ПОРІВНЯННЯ (AI) --- */}
+          <Link to="/compare" className="relative cursor-pointer hover:scale-105 transition text-white hover:text-purple-400">
+            <Scale size={24} />
+            {compareItems.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-black">
+                {compareItems.length}
+              </span>
+            )}
+          </Link>
+
+          {/* --- ОБРАНЕ --- */}
+          <Link to="/favorites" className="relative cursor-pointer hover:scale-105 transition text-white hover:text-red-500">
+            <Heart size={24} />
+            {favorites.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-black">
+                {favorites.length}
+              </span>
+            )}
           </Link>
           
           {/* Корзина */}

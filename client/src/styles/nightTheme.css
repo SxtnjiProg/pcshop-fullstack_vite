@@ -1,0 +1,355 @@
+/* ========================================
+   NIGHT THEME - Advanced Styling
+   ======================================== */
+
+/* Background Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(49, 162, 76, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(49, 162, 76, 0.5); }
+}
+
+@keyframes glow-pulse-blue {
+  0%, 100% { box-shadow: 0 0 20px rgba(31, 111, 235, 0.3); }
+  50% { box-shadow: 0 0 30px rgba(31, 111, 235, 0.5); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Night Theme Card Styles */
+.night-card-hover {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.night-card-hover::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(49, 162, 76, 0.1),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.night-card-hover:hover::before {
+  left: 100%;
+}
+
+/* Night Input Focus Effect */
+.night-input-focus {
+  position: relative;
+}
+
+.night-input-focus::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #31a24c, #1f6feb);
+  transition: width 0.3s ease;
+}
+
+.night-input-focus:focus::after {
+  width: 100%;
+}
+
+/* Night Button Styles */
+.night-btn-glow {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(49, 162, 76, 0.5);
+  transition: all 0.3s ease;
+}
+
+.night-btn-glow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, rgba(49, 162, 76, 0.2) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.night-btn-glow:hover::before {
+  opacity: 1;
+}
+
+/* Product Card Night Styles */
+.night-product-card {
+  background: linear-gradient(135deg, #1c2128 0%, #161b22 100%);
+  border: 1px solid #30363d;
+  border-radius: 12px;
+  padding: 16px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.night-product-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(49, 162, 76, 0.1) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.night-product-card:hover {
+  border-color: #31a24c;
+  box-shadow: 0 8px 24px rgba(49, 162, 76, 0.15);
+}
+
+.night-product-card:hover::before {
+  opacity: 1;
+}
+
+/* Night Badge */
+.night-badge {
+  display: inline-block;
+  background: rgba(49, 162, 76, 0.2);
+  border: 1px solid #31a24c;
+  color: #31a24c;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  animation: float 3s ease-in-out infinite;
+}
+
+.night-badge.discount {
+  background: rgba(218, 54, 51, 0.2);
+  border-color: #da3633;
+  color: #da3633;
+}
+
+.night-badge.hot {
+  background: rgba(251, 133, 0, 0.2);
+  border-color: #fb8500;
+  color: #fb8500;
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+/* Night Section Headers */
+.night-section-header {
+  position: relative;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #30363d;
+}
+
+.night-section-header h2 {
+  color: #c9d1d9;
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.night-section-header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  height: 2px;
+  width: 60px;
+  background: linear-gradient(90deg, #31a24c, transparent);
+}
+
+/* Night Loading Skeleton */
+.night-skeleton {
+  background: linear-gradient(
+    90deg,
+    #1c2128 0%,
+    #21262d 50%,
+    #1c2128 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+/* Night Tooltip */
+.night-tooltip {
+  position: relative;
+}
+
+.night-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1c2128;
+  color: #c9d1d9;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  border: 1px solid #30363d;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.night-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Night Divider */
+.night-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #30363d, transparent);
+  margin: 24px 0;
+}
+
+/* Night Alert Styles */
+.night-alert {
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid;
+  background: rgba(28, 33, 40, 0.8);
+  backdrop-filter: blur(10px);
+  animation: slide-in 0.3s ease;
+}
+
+.night-alert.success {
+  border-color: #31a24c;
+  color: #31a24c;
+}
+
+.night-alert.error {
+  border-color: #da3633;
+  color: #da3633;
+}
+
+.night-alert.warning {
+  border-color: #fb8500;
+  color: #fb8500;
+}
+
+.night-alert.info {
+  border-color: #1f6feb;
+  color: #1f6feb;
+}
+
+/* Night Transitions */
+.night-transition {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Night Text Gradient */
+.night-text-gradient {
+  background: linear-gradient(135deg, #31a24c 0%, #1f6feb 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Floating particles effect */
+.night-particles {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(49, 162, 76, 0.1);
+  border-radius: 50%;
+  animation: float 20s infinite ease-in-out;
+}
+
+/* Night Code Block */
+.night-code {
+  background: #0f1117;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 16px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  color: #79c0ff;
+  overflow-x: auto;
+}
+
+/* Night Links */
+.night-link {
+  color: #1f6feb;
+  text-decoration: none;
+  position: relative;
+  transition: color 0.3s ease;
+}
+
+.night-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #1f6feb;
+  transition: width 0.3s ease;
+}
+
+.night-link:hover {
+  color: #58a6ff;
+}
+
+.night-link:hover::after {
+  width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .night-product-card {
+    padding: 12px;
+  }
+
+  .night-section-header h2 {
+    font-size: 18px;
+  }
+
+  .night-tooltip::after {
+    white-space: normal;
+    max-width: 150px;
+  }
+}

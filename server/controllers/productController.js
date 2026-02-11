@@ -2,7 +2,6 @@ import prisma from '../prismaClient.js';
 
 // --- ДОПОМІЖНА ФУНКЦІЯ: БУДІВНИК ЗАПИТІВ ---
 const buildWhereClause = (query) => {
-  // 👇 ДОДАЛИ: limit, page, skip у виключення, щоб вони не потрапили в specs
   const { category, minPrice, maxPrice, sort, limit, page, skip, ...specs } = query;
   const where = {};
 
@@ -43,33 +42,67 @@ const buildWhereClause = (query) => {
 
 // --- ПУБЛІЧНІ МЕТОДИ (ДЛЯ МАГАЗИНУ) ---
 
-// 1. Отримати список товарів
+// 1. Отримати список товарів (З ПАГІНАЦІЄЮ)
 export const getProducts = async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
+
     const where = buildWhereClause(req.query);
     const { sort } = req.query;
 
+    let orderBy = {};
+    if (sort === 'price_asc') {
+      orderBy.price = 'asc';
+    } else if (sort === 'price_desc') {
+      orderBy.price = 'desc';
+    } else if (sort === 'newest') {
+      orderBy.createdAt = 'desc';
+    } else {
+      orderBy.id = 'desc'; 
+    }
+
     const products = await prisma.product.findMany({
       where,
-      include: { category: true }, // Підтягуємо назву категорії
-      orderBy: { 
-        price: sort === 'asc' ? 'asc' : 'desc' 
-      }
+      include: { category: true },
+      orderBy,
+      take: limit,
+      skip: skip
     });
-    res.json(products);
+
+    const total = await prisma.product.count({ where });
+
+    res.json({
+      products,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    });
+
   } catch (error) {
     console.error('Error fetching products:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
-// 2. Отримати один товар по slug (для сторінки товару)
+// 2. Отримати один товар по slug (з відгуками)
 export const getProductBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     const product = await prisma.product.findUnique({
       where: { slug },
-      include: { category: true }
+      include: { 
+        category: true,
+        reviews: {
+          include: {
+            user: {
+              select: { fullName: true } 
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        }
+      }
     });
 
     if (!product) {
@@ -82,7 +115,35 @@ export const getProductBySlug = async (req, res) => {
   }
 };
 
-// 3. Отримати один товар по ID (для адмінки, редагування)
+// 3. Отримати схожі товари
+export const getSimilarProducts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const currentProduct = await prisma.product.findUnique({
+      where: { id: parseInt(id) },
+      select: { categoryId: true }
+    });
+
+    if (!currentProduct) return res.status(404).json({ error: 'Product not found' });
+
+    const similar = await prisma.product.findMany({
+      where: {
+        categoryId: currentProduct.categoryId,
+        id: { not: parseInt(id) }
+      },
+      take: 4,
+      include: { category: true }
+    });
+
+    res.json(similar);
+  } catch (error) {
+    console.error('Error fetching similar products:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// 4. Отримати один товар по ID (для адмінки)
 export const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -98,19 +159,16 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// 4. Отримати доступні фільтри (Facets)
-// Це потрібно для сайдбару, щоб показати, які характеристики доступні для вибраної вибірки
+// 5. Отримати доступні фільтри
 export const getFilters = async (req, res) => {
   try {
     const where = buildWhereClause(req.query);
     
-    // Шукаємо тільки поле specifications
     const products = await prisma.product.findMany({
       where,
       select: { specifications: true }
     });
 
-    // Збираємо всі унікальні ключі та значення
     const filters = {};
     products.forEach(p => {
       if (p.specifications && typeof p.specifications === 'object') {
@@ -121,7 +179,6 @@ export const getFilters = async (req, res) => {
       }
     });
 
-    // Перетворюємо Set у масив для JSON
     const result = {};
     for (const key in filters) {
       result[key] = Array.from(filters[key]).sort();
@@ -136,24 +193,21 @@ export const getFilters = async (req, res) => {
 
 // --- АДМІНСЬКІ МЕТОДИ (CRUD) ---
 
-// 5. Створити товар
+// 6. Створити товар
 export const createProduct = async (req, res) => {
   try {
-    const { title, price, images, categoryId, specifications } = req.body;
+    const { title, price, images, categoryId, specifications, stock } = req.body;
     
-    // Генеруємо унікальний slug із назви
     const slug = title.toLowerCase()
-      .replace(/[^a-z0-9а-яіїєґ]+/g, '-') // Замінюємо спецсимволи на дефіс
-      .replace(/^-+|-+$/g, '')           // Прибираємо дефіси по краях
-      + '-' + Date.now();                // Додаємо час для унікальності
+      .replace(/[^a-z0-9а-яіїєґ]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      + '-' + Date.now();
 
     const product = await prisma.product.create({
       data: {
         title,
         price: parseFloat(price),
-        // Якщо база SQLite, Prisma може вимагати JSON.stringify для масивів, 
-        // але якщо ти використовуєш нову версію або Postgres - це ок.
-        // Для надійності передаємо як є, Prisma Client розбереться з типами.
+        stock: stock ? parseInt(stock) : 10, // Додаємо Stock (за дефолтом 10)
         images: images || [], 
         categoryId: Number(categoryId),
         specifications: specifications || {},
@@ -167,21 +221,19 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// 6. Оновити товар
+// 7. Оновити товар
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, price, images, categoryId, specifications } = req.body;
+    const { title, price, images, categoryId, specifications, stock } = req.body;
     
-    // При оновленні ми зазвичай НЕ міняємо slug, щоб посилання не ламалися.
-    // Але оновлюємо все інше.
-
     const product = await prisma.product.update({
       where: { id: Number(id) },
       data: {
         title,
         price: parseFloat(price),
-        images: images, // Оновлюємо масив картинок
+        stock: stock !== undefined ? parseInt(stock) : undefined, // Оновлюємо Stock
+        images: images,
         categoryId: Number(categoryId),
         specifications: specifications
       }
@@ -193,61 +245,69 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// 7. Видалити товар
+// 8. Видалити товар (ВИПРАВЛЕНО: Транзакція)
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
-    await prisma.product.delete({ 
-      where: { id: Number(id) } 
-    });
-    res.json({ success: true, message: 'Product deleted' });
+    const productId = Number(id);
+
+    // Використовуємо транзакцію для безпечного видалення зв'язків
+    await prisma.$transaction([
+      // 1. Видаляємо з усіх кошиків
+      prisma.cartItem.deleteMany({ where: { productId } }),
+      
+      // 2. Видаляємо деталі замовлень (щоб не було помилки FK)
+      prisma.orderItem.deleteMany({ where: { productId } }),
+
+      // 3. Видаляємо відгуки
+      prisma.review.deleteMany({ where: { productId } }),
+
+      // 4. Видаляємо сам товар
+      prisma.product.delete({ where: { id: productId } })
+    ]);
+
+    res.json({ success: true, message: 'Product and related data deleted' });
   } catch (error) {
     console.error('Error deleting product:', error);
-    // Перевірка на обмеження зовнішнього ключа (якщо товар є в замовленнях)
-    if (error.code === 'P2003') {
-      return res.status(400).json({ error: 'Cannot delete product because it is in an order.' });
-    }
-    res.status(500).json({ error: 'Error deleting product' });
+    res.status(500).json({ error: 'Server error during deletion' });
   }
 };
+
+// 9. Масове створення (Batch)
 export const createProductsBatch = async (req, res) => {
   try {
-    const products = req.body; // Очікуємо масив об'єктів
+    const products = req.body;
     
     if (!Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ error: 'No products provided' });
     }
 
-    // 1. Отримуємо всі категорії, щоб знайти їх ID за назвою
     const categories = await prisma.category.findMany();
     
     const createdProducts = [];
     const errors = [];
 
-    // 2. Проходимо по кожному товару
     for (const item of products) {
       try {
-        // Шукаємо категорію по назві (нечутливо до регістру)
         const category = categories.find(c => 
           c.name.toLowerCase().trim() === item.categoryName?.toLowerCase().trim()
         );
 
         if (!category) {
           errors.push(`Категорію "${item.categoryName}" не знайдено для товару "${item.title}"`);
-          continue; // Пропускаємо цей товар
+          continue;
         }
 
-        // Генеруємо slug
         const slug = item.title.toLowerCase()
           .replace(/[^a-z0-9а-яіїєґ]+/g, '-')
           .replace(/^-+|-+$/g, '') 
           + '-' + Date.now() + Math.floor(Math.random() * 1000);
 
-        // Створюємо
         const product = await prisma.product.create({
           data: {
             title: item.title,
             price: parseFloat(item.price),
+            stock: item.stock ? parseInt(item.stock) : 10, // Stock при імпорті
             images: item.images || [],
             categoryId: category.id,
             specifications: item.specifications || {},
@@ -271,5 +331,70 @@ export const createProductsBatch = async (req, res) => {
   } catch (error) {
     console.error('Batch create error:', error);
     res.status(500).json({ error: 'Server error during batch import' });
+  }
+};
+
+// 10. Додати відгук
+export const createReview = async (req, res) => {
+  try {
+    const { rating, text } = req.body;
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const product = await prisma.product.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!product) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    const review = await prisma.review.create({
+      data: {
+        text,
+        rating: Number(rating),
+        userId,
+        productId: Number(id)
+      },
+      include: {
+        user: { select: { fullName: true } }
+      }
+    });
+
+    res.status(201).json(review);
+
+  } catch (error) {
+    console.error('Create review error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// 11. Видалити відгук
+export const deleteReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const review = await prisma.review.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!review) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    if (review.userId !== userId && req.user.role !== 'ADMIN') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await prisma.review.delete({
+      where: { id: Number(id) }
+    });
+
+    res.json({ message: 'Review deleted' });
+
+  } catch (error) {
+    console.error('Delete review error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 };

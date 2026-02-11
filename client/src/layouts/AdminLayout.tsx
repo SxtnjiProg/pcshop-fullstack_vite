@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, Settings, LogOut, Layers } from 'lucide-react'; // <--- Додали Layers
 import { useAuth } from '../context/AuthContext';
 import clsx from 'clsx';
 
@@ -16,6 +16,7 @@ export default function AdminLayout() {
   const navItems = [
     { icon: LayoutDashboard, label: 'Дашборд', path: '/admin' },
     { icon: Package, label: 'Товари', path: '/admin/products' },
+    { icon: Layers, label: 'Категорії', path: '/admin/categories' },
     { icon: ShoppingCart, label: 'Замовлення', path: '/admin/orders' },
     { icon: Users, label: 'Клієнти', path: '/admin/users' },
     { icon: Settings, label: 'Налаштування', path: '/admin/settings' },

@@ -31,9 +31,24 @@ export default function AdminProducts() {
 
   const fetchProducts = () => {
     setLoading(true);
+    // Додаємо ліміт, щоб в адмінці бачити все (або багато)
     axios.get('http://localhost:5000/api/products?limit=1000')
-      .then(res => setProducts(res.data))
-      .catch(err => console.error(err))
+      .then(res => {
+        // 👇 ВИПРАВЛЕННЯ ТУТ:
+        // Раніше було setProducts(res.data)
+        // Тепер сервер повертає об'єкт { products: [], total: ... }
+        if (Array.isArray(res.data)) {
+            // Старий формат (на всяк випадок)
+            setProducts(res.data);
+        } else {
+            // Новий формат з пагінацією
+            setProducts(res.data.products || []);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        toast.error('Не вдалося завантажити товари');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -51,7 +66,7 @@ export default function AdminProducts() {
     }
   };
 
-  // --- ЛОГІКА МАСОВОГО ІМПОРТУ (Залишаємо як було) ---
+  // --- ЛОГІКА МАСОВОГО ІМПОРТУ ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -138,20 +153,23 @@ export default function AdminProducts() {
     return result;
   };
 
-  // --- НОВА ЛОГІКА ФІЛЬТРАЦІЇ ---
+  // --- ЛОГІКА ФІЛЬТРАЦІЇ ---
   
-  // 1. Отримуємо список унікальних категорій з завантажених товарів
+  // Безпечно перевіряємо, чи є products масивом перед використанням map
   const categories = useMemo(() => {
+    if (!Array.isArray(products)) return []; // Захист від помилки
     const cats = products.map(p => p.category?.name).filter(Boolean) as string[];
     return Array.from(new Set(cats)).sort();
   }, [products]);
 
-  // 2. Фільтруємо товари
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory ? product.category?.name === selectedCategory : true;
-    return matchesSearch && matchesCategory;
-  });
+  const filteredProducts = useMemo(() => {
+      if (!Array.isArray(products)) return [];
+      return products.filter(product => {
+        const matchesSearch = product.title.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategory ? product.category?.name === selectedCategory : true;
+        return matchesSearch && matchesCategory;
+      });
+  }, [products, searchTerm, selectedCategory]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-20">
@@ -214,10 +232,7 @@ export default function AdminProducts() {
               <option key={cat} value={cat}>{cat}</option>
             ))}
           </select>
-          {/* Стрілочка для селекта (кастомна) */}
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">
-            ▼
-          </div>
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">▼</div>
         </div>
 
       </div>

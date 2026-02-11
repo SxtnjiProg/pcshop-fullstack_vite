@@ -1,45 +1,53 @@
-import jwt from 'jsonwebtoken';
-import prisma from '../prismaClient.js'; // Імпортуємо Prisma, щоб знайти юзера
+import prisma from '../prismaClient.js';
 
-// 1. Перевірка: чи залогінений юзер?
+// 1. Перевірка: чи є активна сесія + чи існує юзер в БД
 export const protect = async (req, res, next) => {
-  let token;
-
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  // Спочатку перевіряємо, чи є запис у сесії (швидка перевірка)
+  if (req.session && req.session.user) {
     try {
-      // Отримуємо токен
-      token = req.headers.authorization.split(' ')[1];
-
-      // Розшифровуємо токен
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      // Знаходимо юзера в базі (без пароля)
-      // Це важливо! Ми беремо реальну роль з бази даних.
-      req.user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: { id: true, email: true, role: true } // Беремо тільки потрібні поля
+      // ПОВНА ПЕРЕВІРКА: Йдемо в базу даних за свіжими даними
+      const user = await prisma.user.findUnique({
+        where: { id: req.session.user.id },
+        // Вибираємо тільки потрібні поля (пароль не тягнемо!)
+        select: { 
+          id: true, 
+          email: true, 
+          role: true, 
+          fullName: true 
+        } 
       });
 
-      if (!req.user) {
-         return res.status(401).json({ error: 'Користувача не знайдено' });
+      // Якщо юзера в базі вже немає (наприклад, видалили), а сесія висіла
+      if (!user) {
+        // Знищуємо "мертву" сесію
+        req.session.destroy((err) => {
+            if (err) console.error('Помилка знищення сесії:', err);
+        });
+        // Очищаємо куку на клієнті
+        res.clearCookie('connect.sid'); 
+        return res.status(401).json({ error: 'Користувач більше не існує. Авторизуйтесь знову.' });
       }
 
+      // Записуємо СВІЖІ дані юзера в req.user
+      // Тепер у наступних контролерах (і в middleware admin) ми використовуємо актуальні дані з БД
+      req.user = user; 
+      
       next();
     } catch (error) {
-      console.error(error);
-      res.status(401).json({ error: 'Не авторизований, токен невірний' });
+      console.error('Auth error:', error);
+      res.status(500).json({ error: 'Помилка перевірки авторизації' });
     }
-  }
-
-  if (!token) {
-    res.status(401).json({ error: 'Немає токена, авторизація відхилена' });
+  } else {
+    res.status(401).json({ error: 'Не авторизований. Сесія відсутня.' });
   }
 };
 
 // 2. Перевірка: чи це АДМІН?
 export const admin = (req, res, next) => {
+  // Тут ми вже використовуємо req.user, який ми заповнили в protect
+  // Це гарантує, що ми перевіряємо роль з бази, а не зі старої сесії
   if (req.user && req.user.role === 'ADMIN') {
-    next(); // Все ок, пропускаємо
+    next();
   } else {
     res.status(403).json({ error: 'Доступ заборонено: потрібні права адміністратора' });
   }
