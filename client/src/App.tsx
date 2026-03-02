@@ -3,6 +3,7 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { ComparisonProvider } from './context/ComparisonContext';
+import { BuilderProvider } from './context/BuilderContext'; // <--- 1. Імпорт провайдера
 import { Toaster } from 'react-hot-toast';
 import 'leaflet/dist/leaflet.css';
 
@@ -13,22 +14,26 @@ import AdminLayout from './layouts/AdminLayout';
 // --- КОМПОНЕНТИ ЗАХИСТУ ---
 import AdminRoute from './components/AdminRoute';
 
-// --- СТОРІНКИ МАГАЗИНУ ---
+// --- СТОРІНКИ ---
 import LandingPage from './pages/LandingPage';
 import Home from './pages/Home';
 import ProductPage from './pages/ProductPage';
 import CartPage from './pages/CartPage';
-import CheckoutPage from './pages/CheckoutPage'; // <--- 1. ДОДАВ ІМПОРТ
+import CheckoutPage from './pages/CheckoutPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import FavoritesPage from './pages/FavoritesPage';
 import ComparePage from './pages/ComparePage';
+import PCBuilderPage from './pages/PCBuilderPage'; // <--- 2. Імпорт сторінки конструктора
 
 // --- СТОРІНКИ ПРОФІЛЮ ---
 import ProfileLayout from './pages/profile/ProfileLayout';
 import ProfileDashboard from './pages/profile/ProfileDashboard';
 import ProfileOrders from './pages/profile/ProfileOrders';
 import ProfileAI from './pages/profile/ProfileAI';
+import ProfileSecurity from './pages/profile/ProfileSecurity';
+import ProfileWishlist from './pages/profile/ProfileWishlist';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 // --- СТОРІНКИ АДМІНКИ ---
 import Dashboard from './pages/admin/Dashboard';
@@ -39,8 +44,6 @@ import AdminUsers from './pages/admin/AdminUsers';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminCategories from './pages/admin/AdminCategories';
 
-
-// Обгортка для публічних сторінок (Шапка + Футер)
 const PublicLayout = () => (
   <Layout>
     <Outlet />
@@ -65,50 +68,52 @@ function App() {
         <WishlistProvider>
           <ComparisonProvider>
             <CartProvider>
-              <Routes>
-                
-                {/* === ГРУПА 1: МАГАЗИН І ПРОФІЛЬ (Доступно всім / юзерам) === */}
-                <Route element={<PublicLayout />}>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/catalog" element={<Home />} />
-                  <Route path="/product/:slug" element={<ProductPage />} />
-                  <Route path="/cart" element={<CartPage />} />
-                  <Route path="/checkout" element={<CheckoutPage />} /> {/* <--- 2. ДОДАВ РОУТ */}
-                  <Route path="/favorites" element={<FavoritesPage />} />
-                  <Route path="/compare" element={<ComparePage />} />
+              {/* 3. ОБГОРТАЄМО ВЕСЬ ДОДАТОК (або хоча б роути) У BUILDER PROVIDER */}
+              <BuilderProvider>
+                <Routes>
                   
-                  <Route path="/login" element={<LoginPage />} />
-                  <Route path="/register" element={<RegisterPage />} />
+                  {/* === ПУБЛІЧНІ СТОРІНКИ === */}
+                  <Route element={<PublicLayout />}>
+                    <Route path="/" element={<LandingPage />} />
+                    <Route path="/catalog" element={<Home />} />
+                    <Route path="/product/:slug" element={<ProductPage />} />
+                    <Route path="/cart" element={<CartPage />} />
+                    <Route path="/checkout" element={<CheckoutPage />} />
+                    <Route path="/compare" element={<ComparePage />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password/:token" element={<ResetPassword />} />
+                    {/* 4. ДОДАЄМО РОУТ КОНСТРУКТОРА */}
+                    <Route path="/pc-builder" element={<PCBuilderPage />} />
+                    
+                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/register" element={<RegisterPage />} />
 
-                  {/* ПРОФІЛЬ КОРИСТУВАЧА */}
-                  <Route path="/profile" element={<ProfileLayout />}>
-                    <Route index element={<ProfileDashboard />} />
-                    <Route path="orders" element={<ProfileOrders />} />
-                    <Route path="wishlist" element={<FavoritesPage />} />
-                    <Route path="reviews" element={<div className="p-10 text-center">Мої відгуки (Скоро)</div>} />
-                    <Route path="ai" element={<ProfileAI />} />
-                    <Route path="settings" element={<div className="p-10 text-center">Налаштування</div>} />
+                    {/* ПРОФІЛЬ */}
+                    <Route path="/profile" element={<ProfileLayout />}>
+                      <Route index element={<ProfileDashboard />} />
+                      <Route path="orders" element={<ProfileOrders />} />
+                      <Route path="wishlist" element={<ProfileWishlist />} />
+                      <Route path="security" element={<ProfileSecurity />} />
+                      <Route path="ai" element={<ProfileAI />} />
+                    </Route>
                   </Route>
-                </Route>
 
-                {/* === ГРУПА 2: ТІЛЬКИ АДМІНКА === */}
-                <Route element={<AdminRoute />}>
-                  <Route path="/admin" element={<AdminLayout />}>
-                    <Route index element={<Dashboard />} />
-                    
-                    <Route path="products" element={<AdminProducts />} />
-                    <Route path="products/new" element={<ProductForm />} />
-                    <Route path="products/edit/:id" element={<ProductForm />} />
-                    <Route path="categories" element={<AdminCategories />} />
-                    
-                    <Route path="orders" element={<AdminOrders />} />
-                    <Route path="users" element={<AdminUsers />} />
-                    
-                    <Route path="settings" element={<AdminSettings />} />
+                  {/* === АДМІНКА === */}
+                  <Route element={<AdminRoute />}>
+                    <Route path="/admin" element={<AdminLayout />}>
+                      <Route index element={<Dashboard />} />
+                      <Route path="products" element={<AdminProducts />} />
+                      <Route path="products/new" element={<ProductForm />} />
+                      <Route path="products/edit/:id" element={<ProductForm />} />
+                      <Route path="categories" element={<AdminCategories />} />
+                      <Route path="orders" element={<AdminOrders />} />
+                      <Route path="users" element={<AdminUsers />} />
+                      <Route path="settings" element={<AdminSettings />} />
+                    </Route>
                   </Route>
-                </Route>
 
-              </Routes>
+                </Routes>
+              </BuilderProvider>
             </CartProvider>
           </ComparisonProvider>
         </WishlistProvider>

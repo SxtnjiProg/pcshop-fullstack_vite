@@ -1,11 +1,12 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'; // Додав useEffect
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 
-interface Product {
+export interface Product { // Експортуємо інтерфейс, якщо він знадобиться в інших місцях
   id: number;
   title: string;
-  price: string;
+  price: number; 
   images: string[];
+  slug: string; // <--- ДОДАНО: це виправить помилку
   specifications?: Record<string, string>; 
   category: { name: string };
 }
@@ -20,7 +21,7 @@ interface ComparisonContextType {
 const ComparisonContext = createContext<ComparisonContextType | undefined>(undefined);
 
 export const ComparisonProvider = ({ children }: { children: ReactNode }) => {
-  // 👇 1. Ініціалізуємо стейт з localStorage
+  // 1. Ініціалізуємо стейт з localStorage
   const [items, setItems] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('comparison_items');
@@ -31,34 +32,42 @@ export const ComparisonProvider = ({ children }: { children: ReactNode }) => {
     }
   });
 
-  // 👇 2. Зберігаємо в localStorage при кожній зміні items
+  // 2. Зберігаємо в localStorage при кожній зміні items
   useEffect(() => {
     localStorage.setItem('comparison_items', JSON.stringify(items));
   }, [items]);
 
   const addToCompare = (product: Product) => {
+    // Перевірка на дублікат
     if (items.some(i => i.id === product.id)) {
-      toast('Вже в порівнянні', { icon: 'ℹ️' });
+      toast('Цей товар вже в порівнянні', { icon: 'ℹ️' });
       return;
     }
+    
+    // Перевірка категорії (можна порівнювати тільки одну категорію)
     if (items.length > 0 && items[0].category.name !== product.category.name) {
-      toast.error('Можна порівнювати тільки товари однієї категорії!');
+      toast.error(`Можна порівнювати тільки товари категорії "${items[0].category.name}"!`);
       return;
     }
+    
+    // Ліміт на кількість
     if (items.length >= 4) {
       toast.error('Максимум 4 товари для порівняння');
       return;
     }
 
-    setItems([...items, product]);
+    setItems(prev => [...prev, product]);
     toast.success('Додано до порівняння');
   };
 
   const removeFromCompare = (id: number) => {
-    setItems(items.filter(i => i.id !== id));
+    setItems(prev => prev.filter(i => i.id !== id));
   };
 
-  const clearComparison = () => setItems([]);
+  const clearComparison = () => {
+    setItems([]);
+    toast.success('Список порівняння очищено');
+  };
 
   return (
     <ComparisonContext.Provider value={{ items, addToCompare, removeFromCompare, clearComparison }}>

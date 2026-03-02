@@ -1,8 +1,12 @@
 import prisma from '../prismaClient.js';
 
-// --- ДОПОМІЖНА ФУНКЦІЯ: БУДІВНИК ЗАПИТІВ ---
+// --- УНІВЕРСАЛЬНИЙ БУДІВНИК ЗАПИТІВ ---
 const buildWhereClause = (query) => {
-  const { category, minPrice, maxPrice, sort, limit, page, skip, ...specs } = query;
+  const { 
+    category, minPrice, maxPrice, sort, limit, page, skip, minWattage, 
+    ...dynamicSpecs // Сюди потрапляє ВСЕ: "Сокет", "Тип пам'яті", "Колір" тощо
+  } = query;
+
   const where = {};
 
   // 1. Фільтр по категорії
@@ -17,20 +21,27 @@ const buildWhereClause = (query) => {
     if (maxPrice) where.price.lte = Number(maxPrice);
   }
 
-  // 3. Фільтр по характеристикам (JSON)
   const jsonFilters = [];
-  Object.entries(specs).forEach(([key, value]) => {
-    if (!value) return;
-    
-    const values = Array.isArray(value) ? value : [value];
-    const orConditions = values.map(val => ({
-      specifications: { path: [key], equals: val }
-    }));
 
-    if (orConditions.length > 0) {
-      jsonFilters.push({ OR: orConditions });
-    }
+  // 3. АВТОМАТИЗАЦІЯ: Пошук по будь-яким вхідним характеристикам
+  Object.entries(dynamicSpecs).forEach(([key, value]) => {
+    if (!value || value === 'undefined' || value === 'null') return;
+
+    // Створюємо фільтр: ключ у JSON (path) має дорівнювати значенню (equals)
+    jsonFilters.push({
+      specifications: {
+        path: [key],   // Наприклад: "Сокет"
+        equals: value  // Наприклад: "LGA1700"
+      }
+    });
   });
+
+  // Спеціальний фільтр для БЖ (залишаємо кириличний ключ як у вас в базі)
+  if (minWattage) {
+    jsonFilters.push({
+      specifications: { path: ['Потужність'], gte: Number(minWattage) }
+    });
+  }
 
   if (jsonFilters.length > 0) {
     where.AND = jsonFilters;
@@ -39,53 +50,34 @@ const buildWhereClause = (query) => {
   return where;
 };
 
-
-// --- ПУБЛІЧНІ МЕТОДИ (ДЛЯ МАГАЗИНУ) ---
-
-// 1. Отримати список товарів (З ПАГІНАЦІЄЮ)
+// --- ОСНОВНИЙ МЕТОД ОТРИМАННЯ ТОВАРІВ ---
 export const getProducts = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 12;
+    const limit = parseInt(req.query.limit) || 100; // Для конструктора беремо багато товарів
     const skip = (page - 1) * limit;
 
     const where = buildWhereClause(req.query);
     const { sort } = req.query;
 
-    let orderBy = {};
-    if (sort === 'price_asc') {
-      orderBy.price = 'asc';
-    } else if (sort === 'price_desc') {
-      orderBy.price = 'desc';
-    } else if (sort === 'newest') {
-      orderBy.createdAt = 'desc';
-    } else {
-      orderBy.id = 'desc'; 
-    }
-
     const products = await prisma.product.findMany({
       where,
       include: { category: true },
-      orderBy,
+      orderBy: sort === 'price_asc' ? { price: 'asc' } : { id: 'desc' },
       take: limit,
       skip: skip
     });
 
     const total = await prisma.product.count({ where });
 
-    res.json({
-      products,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit)
-    });
-
+    res.json({ products, total, page, totalPages: Math.ceil(total / limit) });
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error('API Error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
 
+// Решта методів (getProductBySlug, createProduct тощо) залишаються без змін у вашому файлі
 // 2. Отримати один товар по slug (з відгуками)
 export const getProductBySlug = async (req, res) => {
   try {
@@ -159,10 +151,13 @@ export const getProductById = async (req, res) => {
   }
 };
 
-// 5. Отримати доступні фільтри
+// 5. Отримати доступні фільтри (динамічно з JSON)
 export const getFilters = async (req, res) => {
   try {
-    const where = buildWhereClause(req.query);
+    // Будуємо базовий where (наприклад, тільки для категорії 'cpu')
+    // Важливо: ми не передаємо specs у buildWhereClause, бо хочемо отримати ВСІ можливі фільтри для категорії
+    const { category } = req.query;
+    const where = category ? { category: { slug: category } } : {};
     
     const products = await prisma.product.findMany({
       where,
@@ -207,7 +202,7 @@ export const createProduct = async (req, res) => {
       data: {
         title,
         price: parseFloat(price),
-        stock: stock ? parseInt(stock) : 10, // Додаємо Stock (за дефолтом 10)
+        stock: stock ? parseInt(stock) : 10,
         images: images || [], 
         categoryId: Number(categoryId),
         specifications: specifications || {},
@@ -232,7 +227,7 @@ export const updateProduct = async (req, res) => {
       data: {
         title,
         price: parseFloat(price),
-        stock: stock !== undefined ? parseInt(stock) : undefined, // Оновлюємо Stock
+        stock: stock !== undefined ? parseInt(stock) : undefined,
         images: images,
         categoryId: Number(categoryId),
         specifications: specifications
@@ -245,24 +240,16 @@ export const updateProduct = async (req, res) => {
   }
 };
 
-// 8. Видалити товар (ВИПРАВЛЕНО: Транзакція)
+// 8. Видалити товар
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
     const productId = Number(id);
 
-    // Використовуємо транзакцію для безпечного видалення зв'язків
     await prisma.$transaction([
-      // 1. Видаляємо з усіх кошиків
       prisma.cartItem.deleteMany({ where: { productId } }),
-      
-      // 2. Видаляємо деталі замовлень (щоб не було помилки FK)
       prisma.orderItem.deleteMany({ where: { productId } }),
-
-      // 3. Видаляємо відгуки
       prisma.review.deleteMany({ where: { productId } }),
-
-      // 4. Видаляємо сам товар
       prisma.product.delete({ where: { id: productId } })
     ]);
 
@@ -283,7 +270,6 @@ export const createProductsBatch = async (req, res) => {
     }
 
     const categories = await prisma.category.findMany();
-    
     const createdProducts = [];
     const errors = [];
 
@@ -307,7 +293,7 @@ export const createProductsBatch = async (req, res) => {
           data: {
             title: item.title,
             price: parseFloat(item.price),
-            stock: item.stock ? parseInt(item.stock) : 10, // Stock при імпорті
+            stock: item.stock ? parseInt(item.stock) : 10,
             images: item.images || [],
             categoryId: category.id,
             specifications: item.specifications || {},

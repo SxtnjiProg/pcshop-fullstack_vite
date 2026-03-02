@@ -79,6 +79,7 @@ app.post('/api/ai/compare', aiController.compareProducts);
 app.use('/api/orders', orderRoutes);
 app.use('/api/novaposhta', novaPoshtaRoutes);
 
+
 app.get('/', (req, res) => {
   res.send('🚀 API is running with Prisma Sessions!');
 });

@@ -89,15 +89,16 @@ export default function ProductPage() {
     : 0;
 
   const handleAddToCompare = () => {
-    addToCompare({
-      id: product.id,
-      title: product.title,
-      price: product.price.toString(),
-      images: imageList,
-      category: product.category,
-      specifications: product.specifications as Record<string, string>
-    });
-  };
+  if (!product) return;
+  addToCompare({
+    id: product.id,
+    title: product.title,
+    price: product.price, // ПРИБРАЛИ .toString()
+    images: imageList,
+    category: product.category,
+    specifications: product.specifications as Record<string, string>
+  } as unknown as typeof compareItems[number]);
+};
 
   const submitReview = async () => {
     if (!user) {

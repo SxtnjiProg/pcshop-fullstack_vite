@@ -21,6 +21,8 @@ model User {
   cartItems CartItem[]
   phone     String?
   address   String?
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
 }
 
 enum Role {

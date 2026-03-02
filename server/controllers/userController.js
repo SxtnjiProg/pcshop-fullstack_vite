@@ -40,20 +40,47 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-// 1. Отримати список обраного
+// 1. Отримати список обраного (НОВА ВЕРСІЯ З РЕЙТИНГОМ)
 export const getFavorites = async (req, res) => {
   try {
-    // req.user.id ми беремо з middleware protect
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       include: { 
         favorites: {
-          include: { category: true } // Щоб мати картинку, ціну і категорію
+          include: { 
+            category: true, // Залишаємо категорію
+            reviews: {      // Завантажуємо відгуки для підрахунку
+              select: { rating: true } 
+            }
+          } 
         } 
       }
     });
     
-    res.json(user.favorites);
+    if (!user) {
+      return res.status(404).json({ error: 'Користувача не знайдено' });
+    }
+
+    // Проходимось по кожному товару і рахуємо рейтинг вручну
+    const formattedFavorites = user.favorites.map(product => {
+      const reviews = product.reviews || [];
+      const count = reviews.length;
+      
+      // Сумуємо всі оцінки
+      const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+      
+      // Рахуємо середнє (якщо відгуків 0, то рейтинг 0)
+      const avgRating = count > 0 ? (totalRating / count) : 0;
+
+      return {
+        ...product,          // Всі поля товару
+        rating: avgRating,   // Доданий рейтинг
+        reviewCount: count,  // Додана кількість відгуків
+        reviews: undefined   // Прибираємо масив відгуків, щоб не передавати зайве
+      };
+    });
+
+    res.json(formattedFavorites);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Server error' });
